@@ -2,7 +2,7 @@ import sqlite3
 import requests
 import json
 import matplotlib.pyplot as plt
-
+import os
 GprovinceID = {'北京': 11, '天津': 12, '河北': 13, '山西': 14, '内蒙古': 15,
                '辽宁': 21, '吉林': 22, '黑龙江': 23,
                '上海': 31, '江苏': 32, '浙江': 33, '安徽': 34, '福建': 35, '江西': 36, '山东': 37,
@@ -12,7 +12,7 @@ GprovinceID = {'北京': 11, '天津': 12, '河北': 13, '山西': 14, '内蒙�
 
 GtypeID = {'理科': 1, '文科': 2}
 
-schoolName = '南昌大学'
+
 provinceName = '江西'
 typeName = '理科'
 province_id='36'
@@ -44,7 +44,30 @@ def initDB():
     print("Table created successfully")
     conn.close()
 
-
+def searchProcinceID(schoolid):
+    url = 'https://static-data.gaokao.cn/www/2.0/school/{}/info.json'.format(
+        schoolid)
+    headers = headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36 SLBrowser/8.0.0.3161 SLBChan/25'}
+    result = requests.get(url, headers=headers)
+    info = json.loads(result.text)
+    if info == '':
+        return -1
+    else:
+        provinceid = info['data']['province_id']
+        return provinceid
+def searchSchoolName(schoolid):
+    url = 'https://static-data.gaokao.cn/www/2.0/school/{}/info.json'.format(
+        schoolid)
+    headers = headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36 SLBrowser/8.0.0.3161 SLBChan/25'}
+    result = requests.get(url, headers=headers)
+    info = json.loads(result.text)
+    if info == '':
+        return -1
+    else:
+        schoolName = info['data']['name']
+        return schoolName
 def searchSchoolID(schoolName):
     conn = sqlite3.connect('score.db')
     c = conn.cursor()
@@ -53,7 +76,7 @@ def searchSchoolID(schoolName):
     result = cursor.fetchall()
     if len(result) == 0:
         conn.close()
-        return -1
+        return '-1'
     conn.close()
     return result[0][0]
 def insertSchoolID(schoolName, schoolID):
@@ -104,7 +127,7 @@ def requestSchoolID(schoolName):
                          'Connection': 'Keep-Alive',
                          'Host': 'api.eol.cn',
                          'Origin': 'https://gkcx.eol.cn',
-                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36'}
+                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36 SLBrowser/8.0.0.3161 SLBChan/25'}
     result = requests.get(url, headers=headers)
     info = json.loads(result.text)
     if info['data']['numFound'] == 0:
@@ -115,10 +138,7 @@ def requestSchoolID(schoolName):
 
 
 def requestProvinceScoreLine(provinceName, stype):
-    '''
-    request province score LINE.
-    from 2014-2019.
-    '''
+
     provinceID = GprovinceID[provinceName]
     conn = sqlite3.connect('score.db')
     c = conn.cursor()
@@ -201,7 +221,7 @@ def requestProvinceScoreLine(provinceName, stype):
 def requestSchoolLine(schoolid, schoolName, provinceName, stype):
     '''
     request school score LINE.
-    from 2017-2019.
+    from 2019-2021.
     '''
     url = 'https://static-data.eol.cn/www/2.0/school/%d/info.json' % (schoolid)
     headers = headers = {'Accept': 'text/plain, application/json, */*',
@@ -235,52 +255,16 @@ def requestSchoolLine(schoolid, schoolName, provinceName, stype):
     wenjson = {"type": "文科", "data": wen}
     c.execute(
         "INSERT INTO SCHOOLLINE (NAME, PROVINCE, TYPE, DATA) \
-        VALUES ('%s', '%s', %d, '%s')" % (provinceName, provinceName, 1, json.dumps(lijson)))
+        VALUES ('%s', '%s', %d, '%s')" % (schoolName, provinceName, 1, json.dumps(lijson)))
     c.execute(
         "INSERT INTO SCHOOLLINE (NAME, PROVINCE, TYPE, DATA) \
-        VALUES ('%s', '%s', %d, '%s')" % (provinceName, provinceName, 2, json.dumps(wenjson)))
+        VALUES ('%s', '%s', %d, '%s')" % (schoolName, provinceName, 2, json.dumps(wenjson)))
     conn.commit()
     conn.close()
     if stype == "理科":
         return lijson
     else:
         return wenjson
-
-
-def drawProvinceData(scoreList, provinceName, stype):
-    '''
-    draw province Score Line.\r\n
-    only draw '本科'.\r\n
-    only draw '文科' and '理科'.\r\n
-    from 2014-2019.
-    '''
-    x1 = []
-    y1 = []
-    x2 = []
-    y2 = []
-    for i in range(len(scoreList['data'][0]['data'])):
-        x = scoreList['data'][0]['data'][i]['year']-2013
-        y = scoreList['data'][0]['data'][i]['score']
-        x1.append(x)
-        y1.append(y)
-    for i in range(len(scoreList['data'][1]['data'])):
-        x = scoreList['data'][1]['data'][i]['year']-2013
-        y = scoreList['data'][1]['data'][i]['score']
-        x2.append(x)
-        y2.append(y)
-
-    group_labels = ['2014', '2015', '2016', '2017', '2018', '2019']
-    plt.title('2014-2019年%s分数线(%s)' % (provinceName, stype))
-    plt.xlabel('年度')
-    plt.ylabel('分数')
-
-    plt.plot(x1, y1, 'r', label='本科一批')
-    plt.plot(x2, y2, 'b', label='本科二批')
-    plt.xticks(x1, group_labels, rotation=0)
-    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
-    plt.legend(bbox_to_anchor=[1, 1])
-    plt.grid()
-    plt.show()
 
 
 def drawSchoolLine(provinceLine, schoolLine, schoolName, provinceName, stype):
@@ -312,6 +296,7 @@ def drawSchoolLine(provinceLine, schoolLine, schoolName, provinceName, stype):
         y3.append(y)
 
     group_labels = [ '2016', '2017', '2018', '2019','2020','2021']
+    plt.clf()
     plt.title('历年%s分数线(%s)-%s最低录取分数线' % (provinceName, stype, schoolName))
     plt.xlabel('年度')
     plt.ylabel('分数')
@@ -323,25 +308,15 @@ def drawSchoolLine(provinceLine, schoolLine, schoolName, provinceName, stype):
     plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
     plt.legend(bbox_to_anchor=[1, 1])
     plt.grid()
-    plt.show()
+    if not os.path.exists('分数线折线图'):
+        os.mkdir('分数线折线图')
+    plt.savefig("D:分数线折线图/"+schoolName+typeName+".png")
+    # plt.show()
 
 
 def main():
     print('Demo of scoreLine')
     initDB()
-    # handle school id
-    schoolid = searchSchoolID(schoolName)
-    if schoolid == -1:
-        print('db search SCHOOLID not found')
-        schoolid = requestSchoolID(schoolName)
-        if schoolid == -1:
-            print('SchoolName is NOT exist.')
-            return
-        else:
-            insertSchoolID(schoolName, schoolid)
-    else:
-        print(schoolName, schoolid)
-
     # handle province score line
     if provinceName not in GprovinceID:
         print('provinceName is undefined.')
@@ -354,20 +329,29 @@ def main():
         print('db search PROVINCE not found')
         provinceScoreLine = requestProvinceScoreLine(provinceName, typeName)
     print(provinceScoreLine)
-    # drawProvinceData(provinceScoreLine, provinceName, typeName)
-
-    # handle school line
-    schoolLine = searchSchoolScoreLine(schoolName, provinceName, typeName)
-    if schoolLine == "":
-        print('db search SCHOOLLINE not found')
-        schoolLine = requestSchoolLine(
-            schoolid, schoolName, provinceName, typeName)
+    for schoolid in range(1,3606):#1-3606找学校
+        province_id=searchProcinceID(schoolid)
+        if province_id=='-1':#没有找到学校，函数返回-1
+            continue
+        if province_id!='36':#省份不是是江西，查找下一个学校
+            continue
+        schoolName=searchSchoolName(schoolid)
+        insertSchoolID(schoolName, schoolid)
+        print(schoolName, schoolid)
+        # drawProvinceData(provinceScoreLine, provinceName, typeName)
+        # handle school line
+        schoolLine = searchSchoolScoreLine(schoolName, provinceName, typeName)
         if schoolLine == "":
-            print('request Error')
-            return
-    print(schoolLine)
-    drawSchoolLine(provinceScoreLine, schoolLine,
-                   schoolName, provinceName, typeName)
+            print('db search SCHOOLLINE not found')
+            schoolLine = requestSchoolLine(
+                schoolid, schoolName, provinceName, typeName)
+            if schoolLine == "":
+                print('request Error')
+                return
+        print(schoolLine)
+        drawSchoolLine(provinceScoreLine, schoolLine,
+                       schoolName, provinceName, typeName)
+
 
 
 if __name__ == '__main__':
